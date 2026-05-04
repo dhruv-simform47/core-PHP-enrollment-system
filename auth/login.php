@@ -1,6 +1,6 @@
 <?php
 session_start();
-require_once "../db.php";
+
 
 
 // 1. Redirect if already logged in
@@ -20,21 +20,20 @@ $error = '';
 // 2. Handle Login Submission
 if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_POST['login'])) {
     $email = filter_var(trim($_POST['email']), FILTER_SANITIZE_EMAIL);
-    $password = $_POST['password'];
+    $user_password = $_POST['password'];
     $user_captcha = trim($_POST['captcha']);
 
     // Check if the user answered the math question correctly
     if (empty($_SESSION['captcha_answer']) || $user_captcha != $_SESSION['captcha_answer']) {
         $error = "Invalid Security Answer! Please try again.";
     } else {
-      
-
+        require_once "../db.php";
         $stmt = $pdo->prepare("SELECT * FROM users WHERE email = :email LIMIT 1");
         $stmt->execute([':email' => $email]);
         $user = $stmt->fetch(PDO::FETCH_ASSOC);
         
         
-        if ($user && password_verify($password, $user['password_hash'])) {
+        if ($user && password_verify($user_password, $user['password_hash'])) {
             session_regenerate_id(true);
 
             $_SESSION['user_id'] = $user['uuid'];

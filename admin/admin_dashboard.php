@@ -29,6 +29,7 @@ $course_sql="SELECT COUNT(*) as course_count FROM courses";
                         <div class="card-footer d-flex align-items-center justify-content-between">
                             <a class="small text-white" href="./students.php">View Details</a>
                             <a class="small text-white" href="./add_student.php">Add New</a>
+                            <a class="small text-white" href="./addStudent_csv.php">Add using csv</a>
                             <div class="small text-white"><i class="fas fa-angle-right"></i></div>
                         </div>
                     </div>

@@ -60,6 +60,7 @@ $loggedInName = $_SESSION['user_name'] ?? 'Admin User';
                                     <nav class="sb-sidenav-menu-nested nav">
                                         <a class="nav-link" href="./add_student.php">Add New</a>
                                         <a class="nav-link" href="./students.php">View All</a>
+                                        <a class="nav-link" href="./addStudent_csv.php">add using csv</a>
                                     </nav>
                                 </div>
                                 <!-- instructor -->

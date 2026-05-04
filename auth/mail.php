@@ -1,6 +1,7 @@
 <?php
 // Ensure this points to where your autoloader or bootstrap is located 
 require_once __DIR__ . '/../bootstrap.php';
+
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
 
@@ -25,7 +26,7 @@ class Emailnotification implements Notification
         $this->port     = (int)($_ENV['SMTP_PORT'] ?? 587);
     }
 
-    public function compose($recipient, $subject, $body, $cc = "", $bcc = "")
+    public function compose($recipient, $subject, $body, $cc = "", $bcc = [])
     {
         $mail = new PHPMailer(true);
 
@@ -36,7 +37,7 @@ class Emailnotification implements Notification
             $mail->SMTPAuth   = true;
             $mail->Username   = $this->username;
             $mail->Password   = $this->password;
-            $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS; 
+            $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
             $mail->Port       = $this->port;
 
             // Recipients
@@ -47,7 +48,9 @@ class Emailnotification implements Notification
                 $mail->addCC($cc);
             }
             if (!empty($bcc)) {
-                $mail->addBCC($bcc);
+                foreach ($bcc as $email) {
+                    $mail->addBCC(trim($email));
+                }
             }
 
             // Content
@@ -57,7 +60,6 @@ class Emailnotification implements Notification
 
             $mail->send();
             return true;
-          
         } catch (Exception $e) {
             error_log("Mailer Error: " . $mail->ErrorInfo);
             return false;

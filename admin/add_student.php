@@ -1,6 +1,6 @@
 <?php
-ini_set('display_errors', 1);
-error_reporting(E_ALL);
+// ini_set('display_errors', 0);
+// error_reporting(E_ALL);
 session_start();
 
 require_once "../db.php";
@@ -158,7 +158,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && (isset($_POST['action']))) {
 
                             alertBox.removeClass('alert-danger').addClass('alert-success')
                                 .html(response.message).slideDown();
-                            $('#addCourseForm')[0].reset();
+                            $('#addStudentForm')[0].reset();
                             window.location.href='students.php';
 
                         } else {
@@ -175,7 +175,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && (isset($_POST['action']))) {
                     },
                     complete: function() {
                         // Restore button state
-                        submitBtn.prop('disabled', false).html('<i class="fas fa-save me-1"></i> Save Course');
+                        submitBtn.prop('disabled', false).html('<i class="fas fa-save me-1"></i> Save');
                     }
                 });
             });
