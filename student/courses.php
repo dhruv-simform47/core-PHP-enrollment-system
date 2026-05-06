@@ -6,16 +6,10 @@ require_once "./layout/header.php";
 $student_id = $_SESSION['user_id'];
 
 // Query to get all courses and count current enrollments
-$query = "SELECT c.*, u.user_name as instructor_name,
-          (SELECT COUNT(*) FROM enrollments WHERE course_id = c.id AND status != 'cancelled') as current_enrolls,
-          (SELECT COUNT(*) FROM enrollments WHERE course_id = c.id AND student_id = ? AND status != 'cancelled') as is_enrolled
-          FROM courses c
-          JOIN users u ON c.instructor_id = u.uuid
-          ORDER BY c.created_at DESC";
+$enroll_obj=new Enrollment($pdo);
 
-$stmt = $pdo->prepare($query);
-$stmt->execute([$student_id]);
-$courses = $stmt->fetchAll(PDO::FETCH_ASSOC);
+$courses = $enroll_obj->getAllCoursesWithStatus($student_id);
+
 ?>
 
 <div id="layoutSidenav_content">

@@ -6,20 +6,8 @@ require_once "../db.php";
 
 $student_id = $_SESSION['user_id'];
 
-
-$query = "SELECT e.*, c.course_name, i.user_name 
-          FROM enrollments e 
-          JOIN courses c ON e.course_id = c.id 
-          JOIN users i ON c.instructor_id = i.uuid 
-          WHERE e.student_id = ? 
-          ORDER BY e.enrolled_date DESC";
-
-$stmt = $pdo->prepare($query);
-
-
-$stmt->execute([$student_id]);
-
-$my_enrollments = $stmt->fetchAll(PDO::FETCH_ASSOC);
+$enroll_obj=new Enrollment($pdo);
+$my_enrollments =$enroll_obj->getAllStudentCourses($student_id);
 
 ?>
 

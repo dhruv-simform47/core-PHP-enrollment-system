@@ -25,11 +25,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 
     try {
         // Ensure the enrollment belongs to the logged-in student for security
-        $stmt = $pdo->prepare("UPDATE enrollments SET status = ? WHERE id = ? AND student_id = ?");
-        $stmt->execute([$new_status, $id, $student_id]);
-        
-        echo json_encode(['status' => 'success', 'message' => 'Enrollment status updated!']);
-        exit();
+        $enroll_obj=new Enrollment($pdo);
+        $result=$enroll_obj->updateStatus($id,$student_id,$new_status);
+        echo json_encode($result);
     } catch (Exception $e) {
         echo json_encode(['status' => 'error', 'message' => 'Update failed: ' . $e->getMessage()]);
         exit();
@@ -37,13 +35,9 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
 }
 
 // Fetch existing enrollment details for the form
-$stmt = $pdo->prepare("SELECT e.*, c.course_name, i.user_name as instructor_name 
-                       FROM enrollments e 
-                       JOIN courses c ON e.course_id = c.id 
-                       JOIN users i ON c.instructor_id = i.uuid 
-                       WHERE e.id = ? AND e.student_id = ?");
-$stmt->execute([$id, $student_id]);
-$enroll = $stmt->fetch(PDO::FETCH_ASSOC);
+$enroll_obj=new Enrollment($pdo);
+
+$enroll =$enroll_obj->getCourseDetail($id,$student_id);
 
 if (!$enroll) {
     header("Location: student_dashboard.php");
