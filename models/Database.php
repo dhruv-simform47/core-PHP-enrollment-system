@@ -5,16 +5,17 @@ class Database
     // ? means nullable and Database also as a type 
     private static ?Database $instance = null;
 
-    private string $host = "localhost";
-    private string $db_name = "enrollment_db";
-    private string $username = "root";
-    private string $password = "Root@123";
 
     private PDO $conn;
 
     private function __construct()
     {
-        $this->conn = new PDO("mysql:host=localhost;dbname=enrollment_db", 'root', 'Root@123');
+        $host = $_ENV["DB_HOST"] ?? 'localhost';
+        $dbname = $_ENV["DB_NAME"] ?? '';
+        $username = $_ENV["DB_USER"] ?? '';
+        $password = $_ENV["DB_PASS"] ?? '';
+
+        $this->conn = new PDO("mysql:host=$host;dbname=$dbname", $username, $password);
         $this->conn->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
     }
 
@@ -30,6 +31,13 @@ class Database
     public function getConnection()
     {
         return $this->conn;
+    }
+    private function __clone() {}
+
+    // Prevents unserializing the object
+    private function __wakeup() 
+    {
+        throw new Exception("Cannot unserialize a singleton.");
     }
 
 }

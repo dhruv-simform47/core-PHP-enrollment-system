@@ -1,6 +1,6 @@
 <?php
 // Ensure this points to where your autoloader or bootstrap is located 
-require_once __DIR__ . '/../bootstrap.php';
+require_once __DIR__ . '/../init.php';
 
 use PHPMailer\PHPMailer\PHPMailer;
 use PHPMailer\PHPMailer\Exception;
