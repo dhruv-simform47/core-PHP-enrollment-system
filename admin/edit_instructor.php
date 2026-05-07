@@ -1,6 +1,7 @@
 <?php
 session_start();
 require_once "../db.php";
+require_once "../models/Instructor.php";
 $id = $_GET['id'] ?? '';
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
@@ -10,8 +11,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $status = isset($_POST['is_verified']) ? 1 : 0;
 
     try {
-        $stmt = $pdo->prepare("UPDATE users SET user_name = ?, email = ?, is_verified = ? WHERE uuid = ? AND role = 'instructor'");
-        $stmt->execute([$name, $email, $status, $id]);
+        $instructor_obj=new Instructor($pdo);
+        $is_updated=  $instructor_obj->edit($name,$email,$status,$id);
+        if(!$is_updated)
+        {
+            throw new Exception("Error in update");
+        }
         echo json_encode(['status' => 'success']);
         exit();
     } catch (Exception $e) {
@@ -19,11 +24,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         exit();
     }
 }
-
-$stmt = $pdo->prepare("SELECT * FROM users WHERE uuid = ? AND role = 'instructor'");
-$stmt->execute([$id]);
-$instructor = $stmt->fetch(PDO::FETCH_ASSOC);
-
+$instructor =(new Instructor($pdo))->getById($id);
 if (!$instructor) {
     header("Location: ./instructors.php");
     exit();

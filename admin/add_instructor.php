@@ -4,46 +4,35 @@ error_reporting(E_ALL);
 session_start();
 
 require_once "../db.php";
-
-
-
+require_once "../models/Instructor.php";
 
 if ($_SERVER["REQUEST_METHOD"] == "POST" && (isset($_POST['action']))) {
     header("content-type: application/json");
-
+    
     $errors = [];
-
     $name = trim($_POST["name"] ?? '');
     $email = trim($_POST["email"] ?? '');
     $password = trim($_POST["password"] ?? '');
     $confirm_passoword = trim($_POST["confirm_password"] ?? '');
     $password_hash = password_hash($password, PASSWORD_DEFAULT);
+    
     if (empty($name)) $errors[] = "name is required.";
     if (empty($email)) $errors[] = "email is required.";
     if (empty($password)) $errors[] = "password is required.";
     if ($password != $confirm_passoword) $errors[] = "password must match";
 
-
     if (!empty($errors)) {
         echo json_encode(['status' => 'error', 'errors' => $errors]);
         exit();
     }
+    
     try {
         include_once "../uuid_generator.php";
         $uuid = generateUUIDv4();
-
-        $stmt = $pdo->prepare("
-                INSERT INTO users(uuid, user_name, email, password_hash, role, is_verified) 
-                VALUES (:uuid, :user_name, :email, :password_hash,'instructor', :is_verified)
-            ");
-
-        $stmt->execute([
-            ':uuid' => $uuid,
-            ':user_name' => $name,
-            ':email' => $email,
-            ':password_hash' => $password_hash,
-            ':is_verified' => true
-        ]);
+        $is_inserted = (new Instructor($pdo))->add($uuid, $name, $email, $password_hash);
+        if ($is_inserted == false) {
+            throw new Exception("Failed to insert.");
+        }
         require_once "../auth/mail.php";
 
         $mailer = new Emailnotification();
@@ -135,8 +124,7 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && (isset($_POST['action']))) {
                     alertBox.removeClass('alert-success').addClass('alert-danger')
                         .html('Please fill all required fields correctly.').slideDown();
                     return;
-                }
-                else if (password != confirm_password) {
+                } else if (password != confirm_password) {
                     alertBox.removeClass('alert-success').addClass('alert-danger').html('password didnt match!').slideDown();
                 }
 
@@ -159,14 +147,14 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && (isset($_POST['action']))) {
                             alertBox.removeClass('alert-danger').addClass('alert-success')
                                 .html(response.message).slideDown();
                             $('#addInstructorForm')[0].reset();
-                            window.location.href='instructors.php';
-                            
+                            window.location.href = 'instructors.php';
+
                         } else {
                             // Show validation/backend errors
                             let errorHtml = response.errors.join("<br>");
                             alertBox.removeClass('alert-success').addClass('alert-danger')
                                 .html(errorHtml).slideDown();
-                            
+
                         }
                     },
                     error: function(xhr, status, error) {

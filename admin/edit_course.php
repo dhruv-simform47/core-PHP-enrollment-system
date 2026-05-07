@@ -1,6 +1,9 @@
 <?php
 session_start();
 require_once "../db.php";
+require_once "../models/Instructor.php";
+require_once "../models/Course.php";
+
 $id = $_GET['id'] ?? '';
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
@@ -12,8 +15,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $max_seats = (int)$_POST['max_seats'];
 
     try {
-        $stmt = $pdo->prepare("UPDATE courses SET course_name = ?, description = ?, instructor_id = ?, duration_weeks = ?, max_seats = ? WHERE id = ?");
-        $stmt->execute([$course_name, $description, $instructor_id, $duration, $max_seats, $id]);
+        $course_obj = new Course($pdo);
+        $is_edited = $course_obj->edit($course_name, $description, $instructor_id, $duration, $max_seats, $id);
+        if (!$is_edited) {
+            throw new Exception("Failed to Edit");
+        }
+
         echo json_encode(['status' => 'success']);
         exit();
     } catch (Exception $e) {
@@ -22,15 +29,20 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     }
 }
 
-$stmt = $pdo->prepare("SELECT * FROM courses WHERE id = ?");
-$stmt->execute([$id]);
-$course = $stmt->fetch(PDO::FETCH_ASSOC);
 
-$instStmt = $pdo->prepare("SELECT uuid, user_name FROM users WHERE role = 'instructor'");
-$instStmt->execute();
-$instructors = $instStmt->fetchAll(PDO::FETCH_ASSOC);
+$course_obj = new Course($pdo);
+$course = $course_obj->getById($id);
 
-if (!$course) { header("Location: ./courses.php"); exit(); }
+
+
+$instructor_obj = new Instructor($pdo);
+$instructors = $instructor_obj->getAll();
+
+
+if (!$course) {
+    header("Location: ./courses.php");
+    exit();
+}
 
 require_once "./includes/header.php";
 ?>
@@ -76,20 +88,24 @@ require_once "./includes/header.php";
             </div>
         </div>
     </main>
-<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-<script>
-$('#editCourseForm').on('submit', function(e) {
-    e.preventDefault();
-    $.ajax({
-        url: 'edit_course.php?id=<?php echo $id; ?>',
-        type: 'POST',
-        data: $(this).serialize(),
-        dataType: 'json',
-        success: function(res) {
-            if(res.status === 'success') { alert('Course Updated!'); window.location.href='courses.php'; }
-            else { alert('Error: ' + res.message); }
-        }
-    });
-});
-</script>
-<?php require_once "./includes/footer.php"; ?>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script>
+        $('#editCourseForm').on('submit', function(e) {
+            e.preventDefault();
+            $.ajax({
+                url: 'edit_course.php?id=<?php echo $id; ?>',
+                type: 'POST',
+                data: $(this).serialize(),
+                dataType: 'json',
+                success: function(res) {
+                    if (res.status === 'success') {
+                        alert('Course Updated!');
+                        window.location.href = 'courses.php';
+                    } else {
+                        alert('Error: ' + res.message);
+                    }
+                }
+            });
+        });
+    </script>
+    <?php require_once "./includes/footer.php"; ?>

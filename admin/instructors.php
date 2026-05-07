@@ -1,12 +1,10 @@
 <?php
 session_start();
 require_once "../db.php";
-
-$stmt = $pdo->prepare("SELECT uuid, user_name, email, is_verified, created_at FROM users WHERE role = 'instructor' ORDER BY created_at DESC");
-$stmt->execute();
-$instructors = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
+require_once "../models/Instructor.php";
 require_once "./includes/header.php";
+
+$instructors=(new Instructor($pdo))->getAll();
 ?>
 <div id="layoutSidenav_content">
     <main>

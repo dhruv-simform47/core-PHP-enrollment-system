@@ -1,14 +1,13 @@
 <?php
 session_start();
 require_once "../db.php";
+require_once "../models/Course.php";
 
-$query = "SELECT c.*, u.user_name AS instructor_name, 
-          (c.max_seats - (SELECT COUNT(*) FROM enrollments e WHERE e.course_id = c.id)) AS vacant_seats
-          FROM courses c
-          JOIN users u ON c.instructor_id = u.uuid";
-$stmt = $pdo->prepare($query);
-$stmt->execute();
-$courses = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+$course_obj=new Course($pdo);
+$courses = $course_obj->getFullDetails();
+
+
 
 require_once "./includes/header.php";
 ?>

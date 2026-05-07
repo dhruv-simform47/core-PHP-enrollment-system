@@ -1,12 +1,14 @@
 <?php
 session_start();
 require_once "../db.php";
-$query = "SELECT e.*, s.user_name AS student, c.course_name AS course 
+
+$query = "SELECT e.*, s.user_name AS student,s.uuid as student_id,c.id as Course_id , c.course_name AS course 
           FROM enrollments e 
           JOIN users s ON e.student_id = s.uuid 
           JOIN courses c ON e.course_id = c.id 
           ORDER BY e.enrolled_date DESC";
 $stmt = $pdo->prepare($query);
+
 $stmt->execute();
 $enrollments = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -20,7 +22,7 @@ require_once "./includes/header.php";
                 <li class="breadcrumb-item active">Enrollments</li>
             </ol>
             <div class="card mb-4">
-                <div class="card-header">                   
+                <div class="card-header">
                     <i class="fas fa-list me-1"></i>
                     Enrollment Records
                     <a href="./add_enrollment.php" class="btn btn-primary btn-sm float-end">Add New Enrollment</a>
@@ -34,26 +36,26 @@ require_once "./includes/header.php";
                                 <th>Date</th>
                                 <th>Status</th>
                                 <th>Action</th>
-                            </tr>    
+                            </tr>
                         </thead>
                         <tbody>
                             <?php foreach ($enrollments as $enrollment): ?>
-                            <tr>
-                                <td><?php echo htmlspecialchars($enrollment['student']); ?></td>
-                                <td><?php echo htmlspecialchars($enrollment['course']); ?></td>
-                                <td><?php echo date('d M Y', strtotime($enrollment['enrolled_date'])); ?></td>
-                                <td>
-                                    <?php 
-                                    $badge = 'bg-primary';
-                                    if($enrollment['status'] == 'completed') $badge = 'bg-success';
-                                    if($enrollment['status'] == 'cancelled') $badge = 'bg-danger';
-                                    ?>
-                                    <span class="badge <?php echo $badge; ?>"><?php echo $enrollment['status']; ?></span>
-                                </td>
-                                <td>
-                                    <a href="./edit_enrollment.php?id=<?php echo $enrollment['id']; ?>" class="btn btn-sm btn-primary">Update Status</a>
-                                </td>
-                            </tr>
+                                <tr>
+                                    <td><?php echo htmlspecialchars($enrollment['student']); ?></td>
+                                    <td><?php echo htmlspecialchars($enrollment['course']); ?></td>
+                                    <td><?php echo date('d M Y', strtotime($enrollment['enrolled_date'])); ?></td>
+                                    <td>
+                                        <?php
+                                        $badge = 'bg-primary';
+                                        if ($enrollment['status'] == 'completed') $badge = 'bg-success';
+                                        if ($enrollment['status'] == 'cancelled') $badge = 'bg-danger';
+                                        ?>
+                                        <span class="badge <?php echo $badge; ?>"><?php echo $enrollment['status']; ?></span>
+                                    </td>
+                                    <td>
+                                        <a href="./edit_enrollment.php?id=<?php echo $enrollment['id']; ?>&course_id=<?php echo $enrollment['course_id']; ?>&student_id=<?php echo $enrollment['student_id']; ?>" class="btn btn-sm btn-primary">Update Status</a>
+                                    </td>
+                                </tr>
                             <?php endforeach; ?>
                         </tbody>
                     </table>
@@ -61,4 +63,4 @@ require_once "./includes/header.php";
             </div>
         </div>
     </main>
-<?php require_once "./includes/footer.php"; ?>
+    <?php require_once "./includes/footer.php"; ?>

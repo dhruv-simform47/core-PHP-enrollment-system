@@ -1,6 +1,8 @@
 <?php
 session_start();
 require_once "../db.php";
+require_once "../models/Student.php";
+
 $id = $_GET['id'] ?? '';
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
@@ -10,8 +12,12 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $status = isset($_POST['is_verified']) ? 1 : 0;
 
     try {
-        $stmt = $pdo->prepare("UPDATE users SET user_name = ?, email = ?, is_verified = ? WHERE uuid = ? AND role = 'student'");
-        $stmt->execute([$name, $email, $status, $id]);
+        $stu_obj=new Student($pdo);
+        $is_updated=$stu_obj->edit($name, $email, $status, $id);
+        if(!$is_updated)
+        {
+            throw new Exception("Error in update");
+        }
         echo json_encode(['status' => 'success']);
         exit();
     } catch (Exception $e) {
@@ -20,9 +26,7 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     }
 }
 
-$stmt = $pdo->prepare("SELECT * FROM users WHERE uuid = ? AND role = 'student'");
-$stmt->execute([$id]);
-$student = $stmt->fetch(PDO::FETCH_ASSOC);
+$student =(new Student($pdo))->getById($id);
 
 if (!$student) { header("Location: ./students.php"); exit(); }
 

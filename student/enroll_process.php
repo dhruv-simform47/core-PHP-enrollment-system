@@ -15,11 +15,18 @@ $course_id = $_POST['course_id'];
 
 try {
     $enroll_obj = new Enrollment($pdo);
-    $result = $enroll_obj->enroll($student_id, $course_id);
-    echo json_encode($result);
+    $is_inserted = $enroll_obj->enroll($student_id, $course_id);
+    if(!$is_inserted)
+        {
+            throw new Exception("Failed to Insert");
+        }
+        echo json_encode(['status' => 'success',"message"=>"successfuly Enrolled"]);
+        exit();
+
 
 } catch (PDOException $e) {
     echo json_encode(['status' => 'error', 'message' => 'Database error: ' . $e->getMessage()]);
+    exit();
 }
 
 

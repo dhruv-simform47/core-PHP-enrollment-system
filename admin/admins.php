@@ -1,10 +1,10 @@
 <?php
 session_start();
 require_once "../db.php";
+require_once "../models/Admin.php";
 
-$stmt = $pdo->prepare("SELECT uuid, user_name, email, is_verified, created_at FROM users WHERE role = 'admin' ORDER BY created_at DESC");
-$stmt->execute();
-$admins = $stmt->fetchAll(PDO::FETCH_ASSOC);
+$admin_obj=new Admin($pdo);
+$admins =$admin_obj->getAll();
 
 require_once "./includes/header.php";
 ?>

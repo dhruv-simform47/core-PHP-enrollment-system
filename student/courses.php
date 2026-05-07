@@ -1,4 +1,5 @@
 <?php
+
 session_start();
 require_once "../db.php";
 require_once "./layout/header.php";
@@ -8,7 +9,8 @@ $student_id = $_SESSION['user_id'];
 // Query to get all courses and count current enrollments
 $enroll_obj=new Enrollment($pdo);
 
-$courses = $enroll_obj->getAllCoursesWithStatus($student_id);
+
+$courses = $enroll_obj->getAvailableCoursesForStudent($student_id);
 
 ?>
 

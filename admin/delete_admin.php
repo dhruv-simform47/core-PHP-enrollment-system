@@ -1,12 +1,16 @@
 <?php
 session_start();
-
+require_once "../db.php";
+require_once "../models/Admin.php";
 
 if (isset($_GET['id'])) {
     try {
-        require_once "../db.php";
-        $stmt = $pdo->prepare("DELETE FROM users WHERE uuid = ? AND role = 'admin'");
-        $stmt->execute([$_GET['id']]);
+        $admin_obj=new Admin($pdo);
+        $is_deleted=$admin_obj->delete($_GET['id']);
+        if(!$is_deleted)
+        {
+             throw new Exception("Failed to delete admin.");
+        }
     } catch (Exception $e) {
         $_SESSION['error'] = $e->getMessage();
     }

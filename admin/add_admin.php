@@ -1,9 +1,10 @@
 <?php
-ini_set('display_errors', 1);
-error_reporting(E_ALL);
+
 session_start();
 
 require_once "../db.php";
+require_once "../models/Admin.php";
+
 
 
 if ($_SERVER["REQUEST_METHOD"] == "POST" && (isset($_POST['action']))) {
@@ -29,19 +30,14 @@ if ($_SERVER["REQUEST_METHOD"] == "POST" && (isset($_POST['action']))) {
     try {
         include_once "../uuid_generator.php";
         $uuid = generateUUIDv4();
-
-        $stmt = $pdo->prepare("
-                INSERT INTO users(uuid, user_name, email, password_hash, role, is_verified) 
-                VALUES (:uuid, :user_name, :email, :password_hash,'admin', :is_verified)
-            ");
-
-        $stmt->execute([
-            ':uuid' => $uuid,
-            ':user_name' => $name,
-            ':email' => $email,
-            ':password_hash' => $password_hash,
-            ':is_verified' => true
-        ]);
+        
+        $admin_obj=new Admin($pdo);
+        $is_inserted=$admin_obj->add($uuid,$name,$email,$password_hash);
+        if($is_inserted == false)
+        {
+             throw new Exception("Failed to insert admin.");
+        }
+        
         require_once "../auth/mail.php";
 
         $mailer = new Emailnotification();

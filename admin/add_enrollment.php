@@ -1,6 +1,10 @@
 <?php
 session_start();
 require_once "../db.php";
+require_once "../models/Enrollment.php";
+require_once "../models/Student.php";
+require_once "../models/Course.php";
+
 
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
@@ -13,13 +17,15 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
         exit();
     }
 
-      
-            include_once "../uuid_generator.php"; 
-            $id = generateUUIDv4();
     try {
-        $stmt = $pdo->prepare("INSERT INTO enrollments (id,student_id, course_id) VALUES (?,?,?)");
-        $stmt->execute([$id,$student_id, $course_id]);
-        echo json_encode(['status' => 'success']);
+
+        $enroll_obj=new Enrollment($pdo);
+        $is_inserted=$enroll_obj->enroll($student_id,$course_id);
+        if(!$is_inserted)
+        {
+            throw new Exception("Failed to Insert");
+        }
+        echo json_encode(['status' => 'success', 'message' => 'Successfully enrolled!']);
         exit();
     } catch (Exception $e) {    
         echo json_encode(['status' => 'error', 'message' => $e->getMessage()]);
@@ -27,8 +33,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     }
 }
 
-$students = $pdo->query("SELECT uuid, user_name FROM users WHERE role = 'student' AND is_verified = 1")->fetchAll(PDO::FETCH_ASSOC);
-$courses = $pdo->query("SELECT id, course_name FROM courses")->fetchAll(PDO::FETCH_ASSOC);
+$students = (new Student($pdo))->getAll();
+$courses = (new Course($pdo))->getAll();
 
 require_once "./includes/header.php";
 ?>

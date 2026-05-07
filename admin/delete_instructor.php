@@ -1,10 +1,17 @@
 <?php
 session_start();
+require_once "../db.php";
+require_once "../models/Instructor.php";
+
 if (isset($_GET['id'])) {
     try {
-        require_once "../db.php";
-        $stmt = $pdo->prepare("DELETE FROM users WHERE uuid = ? AND role = 'instructor'");
-        $stmt->execute([$_GET['id']]);
+        
+        $is_deleted=(new Instructor($pdo))->delete($_GET['id']);
+        if(!$is_deleted)
+        {
+            throw new Exception("Failed to delete");
+        }
+       
     } catch (Exception $e) {
         $_SESSION['error'] = $e->getMessage();
     }

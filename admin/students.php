@@ -1,10 +1,9 @@
 <?php
 session_start();
 require_once "../db.php";
+require_once "../models/Student.php";
 
-$stmt = $pdo->prepare("SELECT uuid, user_name, email, is_verified, created_at FROM users WHERE role = 'student' ORDER BY created_at DESC");
-$stmt->execute();
-$students = $stmt->fetchAll(PDO::FETCH_ASSOC);
+$students = (new Student($pdo))->getAll();
 
 require_once "./includes/header.php";
 ?>

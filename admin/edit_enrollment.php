@@ -1,30 +1,23 @@
 <?php
 session_start();
 require_once "../db.php";
+require_once "../models/Enrollment.php";
+
 $id = $_GET['id'] ?? '';
+$enroll_obj = new Enrollment($pdo);
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     header('Content-Type: application/json');
+    $enroll_id = $_POST['enroll_id'];
     $status = $_POST['status'];
-    try {
-        $stmt = $pdo->prepare("UPDATE enrollments SET status = ? WHERE id = ?");
-        $stmt->execute([$status, $id]);
-        echo json_encode(['status' => 'success']);
-        exit();
-    } catch (Exception $e) {
-        echo json_encode(['status' => 'error', 'message' => $e->getMessage()]);
-        exit();
-    }
+    
+    // Admin update (no student_id check required)
+    $result = $enroll_obj->updateStatus($enroll_id, $status);
+    echo json_encode($result);
+    exit();
 }
 
-$stmt = $pdo->prepare("SELECT e.*, s.user_name, c.course_name 
-                       FROM enrollments e 
-                       JOIN users s ON e.student_id = s.uuid 
-                       JOIN courses c ON e.course_id = c.id 
-                       WHERE e.id = ?");
-$stmt->execute([$id]);
-$enroll = $stmt->fetch(PDO::FETCH_ASSOC);
-
+$enroll = $enroll_obj->getById($id);
 if (!$enroll) { header("Location: enrollments.php"); exit(); }
 
 require_once "./includes/header.php";
@@ -35,15 +28,17 @@ require_once "./includes/header.php";
             <h1 class="mt-4">Manage Enrollment</h1>
             <div class="card mb-4">
                 <div class="card-body">
-                    <div class="mb-3">
-                        <label class="form-label fw-bold">Student</label>
-                        <input type="text" class="form-control-plaintext border-bottom" value="<?php echo htmlspecialchars($enroll['user_name']); ?>" readonly>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label fw-bold">Course</label>
-                        <input type="text" class="form-control-plaintext border-bottom" value="<?php echo htmlspecialchars($enroll['course_name']); ?>" readonly>
-                    </div>
                     <form id="editEnrollForm">
+                        <input type="hidden" name="enroll_id" value="<?php echo htmlspecialchars($enroll['id']); ?>">
+                        
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Student</label>
+                            <p class="form-control-plaintext border-bottom"><?php echo htmlspecialchars($enroll['user_name']); ?></p>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label fw-bold">Course</label>
+                            <p class="form-control-plaintext border-bottom"><?php echo htmlspecialchars($enroll['course_name']); ?></p>
+                        </div>
                         <div class="mb-3">
                             <label class="form-label fw-bold">Enrollment Status</label>
                             <select class="form-select" name="status">
@@ -64,7 +59,7 @@ require_once "./includes/header.php";
 $('#editEnrollForm').on('submit', function(e) {
     e.preventDefault();
     $.ajax({
-        url: 'edit_enrollment.php?id=<?php echo $id; ?>',
+        url: 'edit_enrollment.php',
         type: 'POST',
         data: $(this).serialize(),
         dataType: 'json',
@@ -72,6 +67,8 @@ $('#editEnrollForm').on('submit', function(e) {
             if(res.status === 'success') { 
                 alert('Status Updated successfully');
                 window.location.href='enrollments.php'; 
+            } else {
+                alert('Error: ' + res.message);
             }
         }
     });

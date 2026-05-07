@@ -8,26 +8,34 @@ class Enrollment
     {
         $this->db = $pdo;
     }
-    //for specific student get all enrolled courses 
-    public function getAllStudentCourses($student_id)
+
+    // Generic fetch for Admin (all enrollments)
+    public function getAllEnrollments()
     {
+        $query = "SELECT e.*, s.user_name AS student, s.uuid as student_id, c.id as course_id, c.course_name AS course 
+                  FROM enrollments e 
+                  JOIN users s ON e.student_id = s.uuid 
+                  JOIN courses c ON e.course_id = c.id 
+                  ORDER BY e.enrolled_date DESC";
+        return $this->db->query($query)->fetchAll(PDO::FETCH_ASSOC);
+    }
 
-        $query = "SELECT e.*, c.course_name, i.user_name 
-          FROM enrollments e 
-          JOIN courses c ON e.course_id = c.id 
-          JOIN users i ON c.instructor_id = i.uuid 
-          WHERE e.student_id = ? 
-          ORDER BY e.enrolled_date DESC";
-
+    // Fetch for Student Dashboard (My Courses)
+    public function getStudentEnrollments($student_id)
+    {
+        $query = "SELECT e.*, c.course_name, c.id as c_id, i.user_name 
+                  FROM enrollments e 
+                  JOIN courses c ON e.course_id = c.id 
+                  JOIN users i ON c.instructor_id = i.uuid 
+                  WHERE e.student_id = ? 
+                  ORDER BY e.enrolled_date DESC";
         $stmt = $this->db->prepare($query);
-
-
         $stmt->execute([$student_id]);
-
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
-    // Get all courses with enrollment status for a specific student
-    public function getAllCoursesWithStatus($student_id)
+
+    // Fetch for Student "Available Courses" list
+    public function getAvailableCoursesForStudent($student_id)
     {
         $query = "SELECT c.*, u.user_name as instructor_name,
                   (SELECT COUNT(*) FROM enrollments WHERE course_id = c.id AND status != 'cancelled') as current_enrolls,
@@ -35,52 +43,58 @@ class Enrollment
                   FROM courses c
                   JOIN users u ON c.instructor_id = u.uuid
                   ORDER BY c.created_at DESC";
-
         $stmt = $this->db->prepare($query);
         $stmt->execute([$student_id]);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
-    // Handle the enrollment logic (Replaces logic in enroll_process.php)
+    public function getById($enroll_id)
+    {
+        $stmt = $this->db->prepare("SELECT e.*, s.user_name, c.course_name, c.id as course_id
+                                    FROM enrollments e 
+                                    JOIN users s ON e.student_id = s.uuid 
+                                    JOIN courses c ON e.course_id = c.id 
+                                    WHERE e.id = ?");
+        $stmt->execute([$enroll_id]);
+        return $stmt->fetch(PDO::FETCH_ASSOC);
+    }
+
     public function enroll($student_id, $course_id)
     {
-        // Check if already enrolled
         if ($this->isAlreadyEnrolled($student_id, $course_id)) {
             return ['status' => 'error', 'message' => 'Already enrolled.'];
         }
 
-        // Check seats
         if (!$this->hasAvailableSeats($course_id)) {
             return ['status' => 'error', 'message' => 'Course is full.'];
         }
-
-        $enrollId = generateUUIDv4(); // Assuming global or passed in
+        require_once "../uuid_generator.php";
+        $enrollId = generateUUIDv4(); 
         $stmt = $this->db->prepare("INSERT INTO enrollments (id, student_id, course_id, status) VALUES (?, ?, ?, 'active')");
+        $success = $stmt->execute([$enrollId, $student_id, $course_id]);
+        
+        return $success ? ['status' => 'success'] : ['status' => 'error', 'message' => 'Insert failed'];
+    }
 
-        if ($stmt->execute([$enrollId, $student_id, $course_id])) {
-            return ['status' => 'success', 'message' => 'Successfully enrolled!'];
+    public function updateStatus($enroll_id, $status, $student_id = null)
+    {
+        // If student_id is provided, we verify ownership (Student Side)
+        // If student_id is null, we bypass ownership check (Admin Side)
+        $query = "UPDATE enrollments SET status = ? WHERE id = ?";
+        $params = [$status, $enroll_id];
+
+        if ($student_id) {
+            $query .= " AND student_id = ?";
+            $params[] = $student_id;
         }
-        return ['status' => 'error', 'message' => 'Database error.'];
-    }
-    //for specific course fetch details used in edit form
-    public function getCourseDetail($enrollment_id, $student_id)
-    {
-        $stmt = $this->db->prepare("SELECT e.*, c.course_name, i.user_name as instructor_name 
-                       FROM enrollments e 
-                       JOIN courses c ON e.course_id = c.id 
-                       JOIN users i ON c.instructor_id = i.uuid 
-                       WHERE e.id = ? AND e.student_id = ?");
-        $stmt->execute([$enrollment_id, $student_id]);
-        return $stmt->fetch(PDO::FETCH_ASSOC);
-    }
-    public function updateCourseStatus($enrollment_id, $student_id, $new_status)
-    {
-        $query = "UPDATE enrollments SET status = ? WHERE id = ? AND student_id = ?";
+
         $stmt = $this->db->prepare($query);
-        $stmt->execute([$new_status, $enrollment_id, $student_id]);
-        return ['status' => 'success', 'message' => 'Enrollment status updated!'];
+        $stmt->execute($params);
+        
+        return $stmt->rowCount() > 0 
+            ? ['status' => 'success', 'message' => 'Status updated.'] 
+            : ['status' => 'error', 'message' => 'No changes made or unauthorized.'];
     }
-    // following are helper methods to check  before enrolling student
 
     private function isAlreadyEnrolled($student_id, $course_id)
     {

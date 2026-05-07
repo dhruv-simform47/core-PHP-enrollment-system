@@ -1,6 +1,8 @@
 <?php
 session_start();
 require_once "../db.php";
+require_once "../models/Admin.php";
+
 $id = $_GET['id'] ?? '';
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
@@ -10,8 +12,13 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $status = isset($_POST['is_verified']) ? 1 : 0;
 
     try {
-        $stmt = $pdo->prepare("UPDATE users SET user_name = ?, email = ?, is_verified = ? WHERE uuid = ? AND role = 'admin'");
-        $stmt->execute([$name, $email, $status, $id]);
+        $admin_obj=new Admin($pdo);
+        $is_edited=$admin_obj->edit($name,$email,$status,$id);
+        if(!$is_edited)
+        {
+            throw new Exception("Error in update");
+        }
+      
         echo json_encode(['status' => 'success']);
         exit();
     } catch (Exception $e) {
@@ -20,9 +27,8 @@ if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     }
 }
 
-$stmt = $pdo->prepare("SELECT * FROM users WHERE uuid = ? AND role = 'admin'");
-$stmt->execute([$id]);
-$admin = $stmt->fetch(PDO::FETCH_ASSOC);
+$admin_obj=new Admin($pdo);
+$admin= $admin_obj->getById($id);
 
 if (!$admin) {
     header("Location: ./admins.php");
