@@ -75,4 +75,24 @@ class Course
         $stmt->execute([$course_name, $description, $instructor_id, $duration, $max_seats, $id]);
         return $stmt->rowCount() > 0;
     }
+
+    //instructor related method 
+    public function getByInstructor($instructor_id)
+    {
+        $query = "SELECT c.*, 
+              (SELECT COUNT(*) FROM enrollments WHERE course_id = c.id AND status != 'cancelled') as student_count
+              FROM courses c 
+              WHERE c.instructor_id = ? 
+              ORDER BY c.created_at DESC";
+        $stmt = $this->db->prepare($query);
+        $stmt->execute([$instructor_id]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    public function getByIdAndInstructor($course_id, $instructor_id)
+    {
+        $stmt = $this->db->prepare("SELECT * FROM courses WHERE id = ? AND instructor_id = ?");
+        $stmt->execute([$course_id, $instructor_id]);
+        return $stmt->fetch(PDO::FETCH_ASSOC);
+    }
 }

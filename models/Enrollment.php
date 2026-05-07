@@ -69,10 +69,10 @@ class Enrollment
             return ['status' => 'error', 'message' => 'Course is full.'];
         }
         require_once "../uuid_generator.php";
-        $enrollId = generateUUIDv4(); 
+        $enrollId = generateUUIDv4();
         $stmt = $this->db->prepare("INSERT INTO enrollments (id, student_id, course_id, status) VALUES (?, ?, ?, 'active')");
         $success = $stmt->execute([$enrollId, $student_id, $course_id]);
-        
+
         return $success ? ['status' => 'success'] : ['status' => 'error', 'message' => 'Insert failed'];
     }
 
@@ -90,9 +90,9 @@ class Enrollment
 
         $stmt = $this->db->prepare($query);
         $stmt->execute($params);
-        
-        return $stmt->rowCount() > 0 
-            ? ['status' => 'success', 'message' => 'Status updated.'] 
+
+        return $stmt->rowCount() > 0
+            ? ['status' => 'success', 'message' => 'Status updated.']
             : ['status' => 'error', 'message' => 'No changes made or unauthorized.'];
     }
 
@@ -111,5 +111,34 @@ class Enrollment
         $stmt->execute([$course_id, $course_id]);
         $data = $stmt->fetch(PDO::FETCH_ASSOC);
         return $data['current_enrolls'] < $data['max_seats'];
+    }
+
+    //for instructor site 
+
+    // Fetch students for a specific course assigned to an instructor
+    public function getStudentsByCourse($course_id, $instructor_id)
+    {
+        $query = "SELECT e.id as enrollment_id, e.status, e.enrolled_date, u.user_name, u.email 
+              FROM enrollments e 
+              JOIN users u ON e.student_id = u.uuid 
+              JOIN courses c ON e.course_id = c.id
+              WHERE e.course_id = ? AND c.instructor_id = ? 
+              ORDER BY u.user_name ASC";
+        $stmt = $this->db->prepare($query);
+        $stmt->execute([$course_id, $instructor_id]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    // Fetch single enrollment details with security check for instructor
+    public function getEnrollmentForInstructor($enroll_id, $instructor_id)
+    {
+        $query = "SELECT e.*, u.user_name, c.course_name, c.id as course_id 
+              FROM enrollments e
+              JOIN users u ON e.student_id = u.uuid
+              JOIN courses c ON e.course_id = c.id
+              WHERE e.id = ? AND c.instructor_id = ?";
+        $stmt = $this->db->prepare($query);
+        $stmt->execute([$enroll_id, $instructor_id]);
+        return $stmt->fetch(PDO::FETCH_ASSOC);
     }
 }

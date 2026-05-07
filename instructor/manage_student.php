@@ -1,27 +1,26 @@
 <?php
 session_start();
 require_once "../db.php";
+require_once "../models/Enrollment.php";
 
 $instructor_id = $_SESSION['user_id'];
 $enroll_id = $_GET['enroll_id'] ?? '';
+$enroll_model = new Enrollment($pdo);
 
+// Fetch details securely
+$data = $enroll_model->getEnrollmentForInstructor($enroll_id, $instructor_id);
 
-$query = "SELECT e.*, u.user_name, c.course_name 
-          FROM enrollments e
-          JOIN users u ON e.student_id = u.uuid
-          JOIN courses c ON e.course_id = c.id
-          WHERE e.id = ? AND c.instructor_id = ?";
-
-$stmt = $pdo->prepare($query);
-$stmt->execute([$enroll_id, $instructor_id]);
-$data = $stmt->fetch(PDO::FETCH_ASSOC);
-
-if (!$data) { header("Location: instructor_dashboard.php"); exit(); }
+if (!$data) { 
+    header("Location: instructor_dashboard.php"); 
+    exit(); 
+}
 
 if ($_SERVER['REQUEST_METHOD'] == 'POST') {
     $new_status = $_POST['status'];
-    $update = $pdo->prepare("UPDATE enrollments SET status = ? WHERE id = ?");
-    if($update->execute([$new_status, $enroll_id])) {
+    // Use the flexible updateStatus method from our Enrollment model
+    $result = $enroll_model->updateStatus($enroll_id, $new_status);
+    
+    if($result['status'] === 'success') {
         header("Location: view_students.php?course_id=" . $data['course_id']);
         exit();
     }
