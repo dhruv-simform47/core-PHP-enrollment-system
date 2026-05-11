@@ -1,5 +1,6 @@
 <?php
 echo(phpinfo());
+echo "hello";
 // session_start();
  
 // $code = substr(str_shuffle("ABCDEFGHJKLMNPQRSTUVWXYZ23456789"), 0, 5);

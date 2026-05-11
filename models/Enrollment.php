@@ -64,7 +64,7 @@ class Enrollment
         if ($this->isAlreadyEnrolled($student_id, $course_id)) {
             return ['status' => 'error', 'message' => 'Already enrolled.'];
         }
-
+          
         if (!$this->hasAvailableSeats($course_id)) {
             return ['status' => 'error', 'message' => 'Course is full.'];
         }
