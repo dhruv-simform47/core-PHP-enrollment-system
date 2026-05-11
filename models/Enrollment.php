@@ -1,5 +1,4 @@
 <?php
-
 class Enrollment
 {
     private PDO $db;
@@ -9,7 +8,6 @@ class Enrollment
         $this->db = $pdo;
     }
 
-    // Generic fetch for Admin (all enrollments)
     public function getAllEnrollments()
     {
         $query = "SELECT e.*, s.user_name AS student, s.uuid as student_id, c.id as course_id, c.course_name AS course 
@@ -20,7 +18,6 @@ class Enrollment
         return $this->db->query($query)->fetchAll(PDO::FETCH_ASSOC);
     }
 
-    // Fetch for Student Dashboard (My Courses)
     public function getStudentEnrollments($student_id)
     {
         $query = "SELECT e.*, c.course_name, c.id as c_id, i.user_name 
@@ -34,7 +31,6 @@ class Enrollment
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
-    // Fetch for Student "Available Courses" list
     public function getAvailableCoursesForStudent($student_id)
     {
         $query = "SELECT c.*, u.user_name as instructor_name,
@@ -59,63 +55,6 @@ class Enrollment
         return $stmt->fetch(PDO::FETCH_ASSOC);
     }
 
-    public function enroll($student_id, $course_id)
-    {
-        if ($this->isAlreadyEnrolled($student_id, $course_id)) {
-            return ['status' => 'error', 'message' => 'Already enrolled.'];
-        }
-          
-        if (!$this->hasAvailableSeats($course_id)) {
-            return ['status' => 'error', 'message' => 'Course is full.'];
-        }
-        require_once "../uuid_generator.php";
-        $enrollId = generateUUIDv4();
-        $stmt = $this->db->prepare("INSERT INTO enrollments (id, student_id, course_id, status) VALUES (?, ?, ?, 'active')");
-        $success = $stmt->execute([$enrollId, $student_id, $course_id]);
-
-        return $success ? ['status' => 'success'] : ['status' => 'error', 'message' => 'Insert failed'];
-    }
-
-    public function updateStatus($enroll_id, $status, $student_id = null)
-    {
-        // If student_id is provided, we verify ownership (Student Side)
-        // If student_id is null, we bypass ownership check (Admin Side)
-        $query = "UPDATE enrollments SET status = ? WHERE id = ?";
-        $params = [$status, $enroll_id];
-
-        if ($student_id) {
-            $query .= " AND student_id = ?";
-            $params[] = $student_id;
-        }
-
-        $stmt = $this->db->prepare($query);
-        $stmt->execute($params);
-
-        return $stmt->rowCount() > 0
-            ? ['status' => 'success', 'message' => 'Status updated.']
-            : ['status' => 'error', 'message' => 'No changes made or unauthorized.'];
-    }
-
-    private function isAlreadyEnrolled($student_id, $course_id)
-    {
-        $stmt = $this->db->prepare("SELECT id FROM enrollments WHERE student_id = ? AND course_id = ? AND status != 'cancelled'");
-        $stmt->execute([$student_id, $course_id]);
-        return (bool)$stmt->fetch();
-    }
-
-    private function hasAvailableSeats($course_id)
-    {
-        $stmt = $this->db->prepare("SELECT max_seats, 
-                  (SELECT COUNT(*) FROM enrollments WHERE course_id = ? AND status != 'cancelled') as current_enrolls 
-                  FROM courses WHERE id = ?");
-        $stmt->execute([$course_id, $course_id]);
-        $data = $stmt->fetch(PDO::FETCH_ASSOC);
-        return $data['current_enrolls'] < $data['max_seats'];
-    }
-
-    //for instructor site 
-
-    // Fetch students for a specific course assigned to an instructor
     public function getStudentsByCourse($course_id, $instructor_id)
     {
         $query = "SELECT e.id as enrollment_id, e.status, e.enrolled_date, u.user_name, u.email 
@@ -129,7 +68,6 @@ class Enrollment
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
-    // Fetch single enrollment details with security check for instructor
     public function getEnrollmentForInstructor($enroll_id, $instructor_id)
     {
         $query = "SELECT e.*, u.user_name, c.course_name, c.id as course_id 
@@ -140,5 +78,96 @@ class Enrollment
         $stmt = $this->db->prepare($query);
         $stmt->execute([$enroll_id, $instructor_id]);
         return $stmt->fetch(PDO::FETCH_ASSOC);
+    }
+
+    public function enroll($student_id, $course_id)
+    {
+        try {
+            $this->db->beginTransaction();
+
+            if ($this->isAlreadyEnrolled($student_id, $course_id)) {
+                $this->db->rollBack();
+                return ['status' => 'error', 'message' => 'Already enrolled.'];
+            }
+
+            if (!$this->hasAvailableSeats($course_id, true)) {
+                $this->db->rollBack();
+                return ['status' => 'error', 'message' => 'Course is full.'];
+            }
+
+            require_once "../uuid_generator.php";
+            $enrollId = generateUUIDv4();
+            $stmt = $this->db->prepare("INSERT INTO enrollments (id, student_id, course_id, status) VALUES (?, ?, ?, 'active')");
+            $stmt->execute([$enrollId, $student_id, $course_id]);
+
+            $this->db->commit();
+            return ['status' => 'success', 'message' => 'Successfully enrolled!'];
+
+        } catch (Exception $e) {
+            if ($this->db->inTransaction()) $this->db->rollBack();
+            error_log(date('[Y-m-d H:i:s] ') . "Enrollment::enroll Error: " . $e->getMessage() . "\n", 3, __DIR__ . '/../logs/error.log');
+            return ['status' => 'error', 'message' => 'Database error during enrollment.'];
+        }
+    }
+
+    public function updateStatus($enroll_id, $status, $student_id = null)
+    {
+        try {
+            $this->db->beginTransaction();
+
+            if ($status === 'active') {
+                $courseStmt = $this->db->prepare("SELECT course_id FROM enrollments WHERE id = ?");
+                $courseStmt->execute([$enroll_id]);
+                $course_id = $courseStmt->fetchColumn();
+
+                if ($course_id && !$this->hasAvailableSeats($course_id, true)) {
+                    $this->db->rollBack();
+                    return ['status' => 'error', 'message' => 'Cannot activate: Course is full.'];
+                }
+            }
+
+            $query = "UPDATE enrollments SET status = ? WHERE id = ?";
+            $params = [$status, $enroll_id];
+
+            if ($student_id) {
+                $query .= " AND student_id = ?";
+                $params[] = $student_id;
+            }
+
+            $stmt = $this->db->prepare($query);
+            $stmt->execute($params);
+
+            if ($stmt->rowCount() > 0) {
+                $this->db->commit();
+                return ['status' => 'success', 'message' => 'Status updated.'];
+            } else {
+                $this->db->rollBack();
+                return ['status' => 'error', 'message' => 'No changes made or unauthorized.'];
+            }
+
+        } catch (Exception $e) {
+            if ($this->db->inTransaction()) $this->db->rollBack();
+            error_log(date('[Y-m-d H:i:s] ') . "Enrollment::updateStatus Error: " . $e->getMessage() . "\n", 3, __DIR__ . '/../logs/error.log');
+            return ['status' => 'error', 'message' => 'Database error updating status.'];
+        }
+    }
+
+    private function isAlreadyEnrolled($student_id, $course_id)
+    {
+        $stmt = $this->db->prepare("SELECT id FROM enrollments WHERE student_id = ? AND course_id = ? AND status != 'cancelled'");
+        $stmt->execute([$student_id, $course_id]);
+        return (bool)$stmt->fetch();
+    }
+
+    private function hasAvailableSeats($course_id, $lock = false)
+    {
+        $forUpdate = $lock ? " FOR UPDATE" : "";
+        $stmt = $this->db->prepare("SELECT max_seats, 
+                  (SELECT COUNT(*) FROM enrollments WHERE course_id = ? AND status != 'cancelled') as current_enrolls 
+                  FROM courses WHERE id = ?" . $forUpdate);
+        $stmt->execute([$course_id, $course_id]);
+        $data = $stmt->fetch(PDO::FETCH_ASSOC);
+        
+        return $data['current_enrolls'] < $data['max_seats'];
     }
 }
