@@ -1,7 +1,7 @@
 <?php
 session_start();
 require_once "../db.php";
-require_once "../uuid_generator.php"; // Ensure this has generateUUIDv4()
+require_once "../uuid_generator.php";
 
 header('Content-Type: application/json');
 

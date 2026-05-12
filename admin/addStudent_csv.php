@@ -1,6 +1,4 @@
 <?php
-// ini_set('display_errors', 0);
-// error_reporting(E_ALL);
 session_start();
 
 ?>
@@ -53,49 +51,47 @@ session_start();
             $('#csvForm').on('submit', function(e) {
                 e.preventDefault();
                 const fileInput = $("#uploadFile")[0];
-                console.log("debug1");
                 let file = fileInput.files[0];
-                 let alertBox = $('#alertBox');
+                let alertBox = $('#alertBox');
                 // check file is uploaded or not 
                 if (!file) {
-                    console.log("debug2");
+                    
                     alertBox.removeClass('alert-success').addClass('alert-danger')
                         .html('First Upload the File.').slideDown();
                     return;
                 }
                 //check extension of file 
-                if (file.type !== "text/csv")
-                {
-                    console.log("debug3");
+                if (file.type !== "text/csv") {
+                   
                     alertBox.removeClass('alert-success').addClass('alert-danger')
                         .html('Invalid file Extension!').slideDown();
                     return;
                 }
 
 
-                
+
                 let submitBtn = $('#submitBtn');
 
 
                 submitBtn.prop('disabled', true);
-                console.log("debug4");
+                
                 alertBox.slideUp(); // Hide old alerts
-                let formData=new FormData();
-                formData.append("csvFile",$("#uploadFile")[0].files[0]);
-                formData.append("save",true);
+                let formData = new FormData();
+                formData.append("csvFile", $("#uploadFile")[0].files[0]);
+                formData.append("save", true);
 
                 //Send AJAX Request 
                 $.ajax({
                     url: "file_validator.php",
                     type: "POST",
                     data: formData,
-                    processData:false,
-                    contentType:false,
+                    processData: false,
+                    contentType: false,
                     dataType: "json",
                     success: function(response) {
 
                         if (response.status === 'success') {
-                            console.log("debug6");
+                            ("debug6");
                             alertBox.removeClass('alert-danger').addClass('alert-success')
                                 .html(response.message).slideDown();
                             $('#csvForm')[0].reset();
@@ -103,7 +99,7 @@ session_start();
 
                         } else {
                             // Show validation/backend errors
-                            console.log("debug7");
+                            ("debug7");
                             let errorHtml = response.errors.join("<br>");
                             alertBox.removeClass('alert-success').addClass('alert-danger')
                                 .html(errorHtml).slideDown();
@@ -111,16 +107,16 @@ session_start();
                     },
                     error: function(xhr, status, error) {
                         console.error(xhr.responseText);
-                        console.log("debug8");
-                        console.log("STATUS:", status);
-                        console.log("ERROR:", error);
-                        console.log("RESPONSE TEXT:", xhr.responseText);
+                        ("debug8");
+                        ("STATUS:", status);
+                        ("ERROR:", error);
+                        ("RESPONSE TEXT:", xhr.responseText);
                         alertBox.removeClass('alert-success').addClass('alert-danger')
                             .html('A server error occurred. Please check the console.').slideDown();
                     },
                     complete: function() {
                         // Restore button state
-                        console.log("debug5");
+                        ("debug5");
                         submitBtn.prop('disabled', false).html('<i class="fas fa-save me-1"></i> Save');
                     }
                 });

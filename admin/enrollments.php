@@ -1,47 +1,5 @@
 <?php
 session_start();
-require_once "../db.php";
-require_once "../models/Enrollment.php";
-require_once "../models/Student.php";
-require_once "../models/Course.php";
-
-// --- AJAX HANDLER ---
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['action'])) {
-    header('Content-Type: application/json');
-    $enroll_obj = new Enrollment($pdo);
-    $action = $_POST['action'];
-
-    try {
-        if ($action === 'add') {
-            $student_id = $_POST['student_id'] ?? '';
-            $course_id = $_POST['course_id'] ?? '';
-
-            if (empty($student_id) || empty($course_id)) throw new Exception("Please select both student and course.");
-            
-            $result = $enroll_obj->enroll($student_id, $course_id);
-            if ($result['status'] === 'error') throw new Exception($result['message']);
-            
-            echo json_encode(['status' => 'success', 'message' => 'Successfully enrolled!']);
-        } 
-        elseif ($action === 'edit') {
-            $enroll_id = $_POST['id'];
-            $status = $_POST['status'];
-
-            $result = $enroll_obj->updateStatus($enroll_id, $status);
-            if ($result['status'] === 'error') throw new Exception($result['message']);
-
-            echo json_encode(['status' => 'success', 'message' => 'Status updated!']);
-        }
-    } catch (Exception $e) {
-        echo json_encode(['status' => 'error', 'message' => $e->getMessage()]);
-    }
-    exit();
-}
-
-// --- PAGE LOAD ---
-$enrollments = (new Enrollment($pdo))->getAllEnrollments();
-$students = (new Student($pdo))->getAll();
-$courses = (new Course($pdo))->getAll();
 require_once "./includes/header.php";
 ?>
 
@@ -55,36 +13,24 @@ require_once "./includes/header.php";
                     <button class="btn btn-primary btn-sm float-end" onclick="openModal('add')">Add New Enrollment</button>
                 </div>
                 <div class="card-body">
-                    <table id="datatablesSimple">
+                    <table id="enrollmentTable" class="table table-bordered w-100">
                         <thead>
-                            <tr><th>Student</th><th>Course</th><th>Date</th><th>Status</th><th>Actions</th></tr>
+                            <tr>
+                                <th>Student</th>
+                                <th>Course</th>
+                                <th>Date</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
                         </thead>
-                        <tbody>
-                            <?php foreach ($enrollments as $row): ?>
-                                <tr>
-                                    <td><?php echo htmlspecialchars($row['student']); ?></td>
-                                    <td><?php echo htmlspecialchars($row['course']); ?></td>
-                                    <td><?php echo date('d M Y', strtotime($row['enrolled_date'])); ?></td>
-                                    <td>
-                                        <?php
-                                        $badge = 'bg-primary';
-                                        if ($row['status'] == 'completed') $badge = 'bg-success';
-                                        if ($row['status'] == 'cancelled') $badge = 'bg-danger';
-                                        ?>
-                                        <span class="badge <?php echo $badge; ?>"><?php echo ucfirst($row['status']); ?></span>
-                                    </td>
-                                    <td>
-                                        <button class="btn btn-sm btn-primary" onclick='openModal("edit", <?php echo json_encode($row, JSON_HEX_APOS | JSON_HEX_QUOT); ?>)'>Update Status</button>
-                                    </td>
-                                </tr>
-                            <?php endforeach; ?>
-                        </tbody>
+                        <tbody></tbody>
                     </table>
                 </div>
             </div>
         </div>
     </main>
 
+    <!-- Modal Form -->
     <div class="modal fade" id="mainModal" tabindex="-1">
         <div class="modal-dialog">
             <form id="mainForm" class="modal-content">
@@ -101,19 +47,13 @@ require_once "./includes/header.php";
                         <div class="mb-3">
                             <label class="form-label">Student</label>
                             <select class="form-select" name="student_id" id="student_id">
-                                <option value="" disabled selected>-- Select Student --</option>
-                                <?php foreach ($students as $s): ?>
-                                    <option value="<?php echo htmlspecialchars($s['uuid']); ?>"><?php echo htmlspecialchars($s['user_name']); ?></option>
-                                <?php endforeach; ?>
+                                <option value="">Loading students...</option>
                             </select>
                         </div>
                         <div class="mb-3">
                             <label class="form-label">Course</label>
                             <select class="form-select" name="course_id" id="course_id">
-                                <option value="" disabled selected>-- Select Course --</option>
-                                <?php foreach ($courses as $c): ?>
-                                    <option value="<?php echo htmlspecialchars($c['id']); ?>"><?php echo htmlspecialchars($c['course_name']); ?></option>
-                                <?php endforeach; ?>
+                                <option value="">Loading courses...</option>
                             </select>
                         </div>
                     </div>
@@ -144,42 +84,103 @@ require_once "./includes/header.php";
         </div>
     </div>
 
-<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-<script>
-    function openModal(action, data = null) {
-        $('#mainForm')[0].reset();
-        $('#alertBox').hide();
-        $('#formAction').val(action);
-        
-        if(action === 'edit') {
-            $('#modalTitle').text('Update Enrollment Status');
-            $('.add-only').hide();
-            $('.edit-only').show();
-            $('#student_id, #course_id').removeAttr('required');
-            
-            $('#recordId').val(data.id);
-            $('#displayStudent').text(data.student);
-            $('#displayCourse').text(data.course);
-            $('#status').val(data.status);
-        } else {
-            $('#modalTitle').text('Add New Enrollment');
-            $('.add-only').show();
-            $('.edit-only').hide();
-            $('#student_id, #course_id').attr('required', true);
-        }
-        $('#mainModal').modal('show');
-    }
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
 
-    $('#mainForm').on('submit', function(e) {
-        e.preventDefault();
-        $('#submitBtn').prop('disabled', true).text('Saving...');
-        $.post('enrollments.php', $(this).serialize(), function(res) {
-            if(res.status === 'success') location.reload();
-            else {
-                $('#alertBox').removeClass('alert-success').addClass('alert-danger').text(res.message).show();
-                $('#submitBtn').prop('disabled', false).text('Save changes');
+    <script>
+        // Initialize Table
+        const enrollTable = $('#enrollmentTable').DataTable({
+            processing: true,
+            serverSide: true,
+            dom: '<"d-flex justify-content-between align-items-center mb-3"lf>rt<"d-flex justify-content-between align-items-center mt-3"ip>',
+            ajax: {
+                url: '../admin_api/enrollments_api.php',
+                type: 'POST',
+                data: {
+                    action: 'list'
+                }
+            },
+            columns: [{
+                    data: 'student'
+                },
+                {
+                    data: 'course'
+                },
+                {
+                    data: 'enrolled_date',
+                    render: (data) => new Date(data).toLocaleDateString('en-GB', {
+                        day: '2-digit',
+                        month: 'short',
+                        year: 'numeric'
+                    })
+                },
+                {
+                    data: 'status',
+                    render: function(data) {
+                        let badge = 'bg-primary';
+                        if (data === 'completed') badge = 'bg-success';
+                        if (data === 'cancelled') badge = 'bg-danger';
+                        return `<span class="badge ${badge}">${data.charAt(0).toUpperCase() + data.slice(1)}</span>`;
+                    }
+                },
+                {
+                    data: null,
+                    render: (data, type, row) => `
+                    <button class="btn btn-sm btn-primary" onclick='openModal("edit", ${JSON.stringify(row)})'>Update Status</button>`
+                }
+            ]
+        });
+
+        // Load Dropdowns (Students & Courses)
+        function loadDependencies() {
+            $.post('../admin_api/enrollments_api.php', {
+                action: 'get_dependencies'
+            }, function(res) {
+                let sHtml = '<option value="" disabled selected>-- Select Student --</option>';
+                res.students.forEach(s => sHtml += `<option value="${s.uuid}">${s.user_name}</option>`);
+                $('#student_id').html(sHtml);
+
+                let cHtml = '<option value="" disabled selected>-- Select Course --</option>';
+                res.courses.forEach(c => cHtml += `<option value="${c.id}">${c.course_name}</option>`);
+                $('#course_id').html(cHtml);
+            }, 'json');
+        }
+
+        function openModal(action, data = null) {
+            $('#mainForm')[0].reset();
+            $('#alertBox').hide();
+            $('#formAction').val(action);
+
+            if (action === 'edit') {
+                $('#modalTitle').text('Update Enrollment Status');
+                $('.add-only').hide();
+                $('.edit-only').show();
+                $('#recordId').val(data.id);
+                $('#displayStudent').text(data.student);
+                $('#displayCourse').text(data.course);
+                $('#status').val(data.status);
+            } else {
+                $('#modalTitle').text('Add New Enrollment');
+                $('.add-only').show();
+                $('.edit-only').hide();
+                loadDependencies(); // Only load list when adding
             }
-        }, 'json');
-    });
-</script>
-<?php require_once "./includes/footer.php"; ?>
+            $('#mainModal').modal('show');
+        }
+
+        $('#mainForm').on('submit', function(e) {
+            e.preventDefault();
+            $('#submitBtn').prop('disabled', true).text('Saving...');
+            $.post('../admin_api/enrollments_api.php', $(this).serialize(), function(res) {
+                if (res.status === 'success') {
+                    $('#mainModal').modal('hide');
+                    enrollTable.ajax.reload();
+                    $('#submitBtn').prop('disabled', false).text('Save changes');
+                } else {
+                    $('#alertBox').text(res.message).show();
+                    $('#submitBtn').prop('disabled', false).text('Save changes');
+                }
+            }, 'json');
+        });
+    </script>
+    <?php require_once "./includes/footer.php"; ?>

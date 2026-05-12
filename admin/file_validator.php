@@ -1,11 +1,8 @@
 <?php
-// ini_set('display_errors', 0);
-// error_reporting(E_ALL);
-// ini_set('log_errors', 1);
-// 1. MUST start the session to use $_SESSION
 session_start();
-
+require_once "../uuid_generator.php";
 require_once "../db.php";
+require_once "../auth/mail.php";
 
 class fileOpenException extends Exception
 {
@@ -30,151 +27,102 @@ class FileExtensionError extends Exception
 }
 
 
-
 if ($_SERVER["REQUEST_METHOD"] == "POST" && (isset($_POST['save']))) {
-    //set response type
     header("content-type: application/json");
     $errors = [];
-
-    // Safely grab file info (if no file was uploaded, this prevents a crash)
     $file_name = $_FILES['csvFile']['name'] ?? '';
     $extension = strtolower(pathinfo($file_name, PATHINFO_EXTENSION));
     $tmp_file = $_FILES['csvFile']['tmp_name'] ?? '';
     $target = "../assets/files/" . $file_name;
 
-    // Initialize variables as false
     $sourcefile = false;
-    // $validfile = false;
-    // $errorlog = false;
-
-    // Reset session flags for a fresh start
-    $_SESSION['errors'] = [];
-    // $_SESSION["showContent"] = false;
 
     try {
-        // Check for built-in PHP upload errors (like exceeding the 2MB size limit)
         if (isset($_FILES['csvFile']['error']) && $_FILES['csvFile']['error'] !== UPLOAD_ERR_OK) {
-            throw new Exception("PHP Upload Error Code: " . $_FILES['csvFile']['error'] . " (Check file size limits or if a file was actually selected).");
+            throw new Exception("PHP Upload Error.");
         }
 
         if ($extension == "csv") {
-            // Attempt to move the file
             if (move_uploaded_file($tmp_file, $target)) {
                 $sourcefile = @fopen($target, "r");
 
                 if ($sourcefile != false) {
-
-                    $header = fgetcsv($sourcefile,0,',','"',"\\");
-                    //check all columns available or not ?
-                    // uuid, user_name, email, password_hash, is_verified
-
+                    fgetcsv($sourcefile); 
 
                     $row_num = 1;
-                    $emails=[];
-                    while (($line = fgetcsv($sourcefile,0,',','"',"\\")) != false) {
-                        include_once "../uuid_generator.php";
+                    $emails = [];
+                    $insert_array = []; 
+
+                    while (($line = fgetcsv($sourcefile, 0, ',', '"', "\\")) != false) {
+                        $name = trim($line[0] ?? '');
+                        $email = trim($line[1] ?? '');
+
+                        // Validation
+                        if (empty($name)) $errors[] = "Row $row_num: Name is empty.";
+                        if (empty($email)) $errors[] = "Row $row_num: Email is empty.";
+                        elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) $errors[] = "Row $row_num: Invalid email ($email).";
+
+                        if (count($errors) > 0) break; 
+
                         $uuid = generateUUIDv4();
-                        $name = $line[0];
-                        $email = $line[1];
-                        $psw = substr($name, 0, 4);
-                        $psw .= substr($email, 0, 4);
+                        $psw = substr($name, 0, 4) . substr($email, 0, 4);
                         $password_hash = password_hash($psw, PASSWORD_DEFAULT);
 
-                        $isError = false;
-                        $row_data = [];
-                        
-                        if (!empty($name)) {
-                            $row_data[] = $name;
-                        } else {
-                            $isError = true;
-                            $row_data[] = "undefined";
-                            $errors[] = "Name is empty on: row" . $row_num;
-                        }
+                        // 1. Add to the Bulk Array (Array of Arrays)
+                        $insert_array[] = [
+                            'uuid' => $uuid,
+                            'user_name' => $name,
+                            'email' => $email,
+                            'password_hash' => $password_hash,
+                            'is_verified' => 1
+                        ];
 
-                        if (!empty($email)) {
-                            if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-                                $isError = true;
-                                $errors[] = "Email is not-valid". $email;
-                            }
-                            $row_data[] = $email;
-                        } else {
-                            $isError = true;
-                            $row_data[] = "undefined";
-                            $errors[] = "Email is empty on: row" . $row_num;;
-                        }
-
-                        // Write to db
-                        // if error found then return from here json 
-                        if ($isError) {
-                            echo json_encode(['status' => 'error', 'errors' => $errors]);
-                            exit();
-                        }
-                        $emails[]=$email;
-                        $stmt = $pdo->prepare("
-                                INSERT INTO users(uuid, user_name, email, password_hash, is_verified) 
-                                VALUES (:uuid, :user_name, :email, :password_hash, :is_verified)
-                                ");
-
-                        $stmt->execute([
-                            ':uuid' => $uuid,
-                            ':user_name' => $name,
-                            ':email' => $email,
-                            ':password_hash' => $password_hash,
-                            ':is_verified' => true
-                        ]);
+                        $emails[] = $email;
+                        $row_num++;
                     }
 
-                    require_once "../auth/mail.php";
+                    if (count($errors) > 0) {
+                        echo json_encode(['status' => 'error', 'errors' => $errors]);
+                        exit();
+                    }
 
+                    // 2. CONSTRUCT BULK INSERT QUERY
+                    if (!empty($insert_array)) {
+                        $columns = ['uuid', 'user_name', 'email', 'password_hash', 'is_verified'];
+                        $col_string = implode(',', $columns);
+                        
+                        // Create placeholders: (?,?,?,?,?), (?,?,?,?,?) ...
+                        $row_placeholders = '(' . implode(',', array_fill(0, count($columns), '?')) . ')';
+                        $all_placeholders = implode(',', array_fill(0, count($insert_array), $row_placeholders));
+
+                        $sql = "INSERT INTO users ($col_string) VALUES $all_placeholders";
+                        $stmt = $pdo->prepare($sql);
+
+                        // 3. FLATTEN THE ARRAY FOR PDO
+                        // PDO execute needs a flat array [val1, val2, val3...]
+                        $flat_values = [];
+                        foreach ($insert_array as $row) {
+                            foreach ($row as $value) {
+                                $flat_values[] = $value;
+                            }
+                        }
+
+                        $stmt->execute($flat_values);
+                    }
+
+                    // Email notification
                     $mailer = new Emailnotification();
-                    $subject = "Enrollment Account credentials";
-                    
-
-                    $message = "Hello Student you can now access student System with your crednetial as follow:\n Password format: \n 1)<b> First 4 inital of your name and 4 initial of email </b> \n  <u><i>You have to login into the system and chnage the password for Future Use! </i></u>";
-
-                    $mailer->compose("ranadhruv842@gmail.com", $subject, $message,"",$emails);
+                    $mailer->compose("ranadhruv842@gmail.com", "Enrollment Credentials", "Hello...", "", $emails);
 
                     echo json_encode(['status' => 'success', 'message' => 'Students added successfully!']);
-                    exit();
-                   
                 } else {
                     throw new fileOpenException($file_name);
                 }
-            } else {
-                throw new Exception("Server Permission Error: Could not save the uploaded file to the 'upload/' directory.");
             }
-        } else {
-            throw new FileExtensionError();
         }
-    }catch (FileExtensionError $f) {
-    echo json_encode([
-        'status' => 'error',
-        'errors' => [$f->getCustomMessage()]
-    ]);
-    exit();
-}
-catch (fileOpenException $e) {
-    echo json_encode([
-        'status' => 'error',
-        'errors' => [$e->getCustomMessage()]
-    ]);
-    exit();
-}
-catch (Exception $e) {
-    echo json_encode([
-        'status' => 'error',
-        'errors' => [$e->getMessage()]
-    ]);
-    exit();
+    } catch (Exception $e) {
+        echo json_encode(['status' => 'error', 'errors' => [$e->getMessage()]]);
     } finally {
-        // ALWAYS close resources safely
         if ($sourcefile) fclose($sourcefile);
-        // if ($validfile) fclose($validfile);
-        // if ($errorlog) fclose($errorlog);
     }
-
-    // --- THE FIX ---
-    // 1. Force PHP to lock in the Session Data right now
-    session_write_close();
-    
 }
