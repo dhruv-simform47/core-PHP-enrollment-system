@@ -1,20 +1,14 @@
 <?php
 session_start();
 require_once "../db.php";
+require_once "../models/Course.php"; 
 require_once "./layout/header.php"; 
 
 $instructor_id = $_SESSION['user_id'];
+$course_model = new Course($pdo);
 
-
-$query = "SELECT c.*, 
-          (SELECT COUNT(*) FROM enrollments WHERE course_id = c.id AND status != 'cancelled') as student_count
-          FROM courses c 
-          WHERE c.instructor_id = ? 
-          ORDER BY c.created_at DESC";
-
-$stmt = $pdo->prepare($query);
-$stmt->execute([$instructor_id]);
-$my_courses = $stmt->fetchAll(PDO::FETCH_ASSOC);
+// Assuming you add a getByInstructor method to your Course model
+$my_courses = $course_model->getByInstructor($instructor_id); 
 ?>
 
 <div id="layoutSidenav_content">

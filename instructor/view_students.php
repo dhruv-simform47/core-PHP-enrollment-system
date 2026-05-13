@@ -1,31 +1,25 @@
 <?php
 session_start();
 require_once "../db.php";
+require_once "../models/Course.php";
+require_once "../models/Enrollment.php";
 require_once "./layout/header.php";
 
 $instructor_id = $_SESSION['user_id'];
 $course_id = $_GET['course_id'] ?? '';
 
-// SECURITY: Ensure this instructor actually teaches this course before showing students
-$securityStmt = $pdo->prepare("SELECT course_name FROM courses WHERE id = ? AND instructor_id = ?");
-$securityStmt->execute([$course_id, $instructor_id]);
-$course = $securityStmt->fetch(PDO::FETCH_ASSOC);
+$course_model = new Course($pdo);
+$enroll_model = new Enrollment($pdo);
+
+// SECURITY: Verify course ownership
+$course = $course_model->getByIdAndInstructor($course_id, $instructor_id);
 
 if (!$course) {
     echo "<div class='container-fluid px-4'><div class='alert alert-danger mt-4'>Access Denied or Course Not Found.</div></div>";
     exit();
 }
 
-// Fetch students enrolled in this course
-$query = "SELECT e.id as enrollment_id, e.status, e.enrolled_date, u.user_name, u.email 
-          FROM enrollments e 
-          JOIN users u ON e.student_id = u.uuid 
-          WHERE e.course_id = ? 
-          ORDER BY u.user_name ASC";
-
-$stmt = $pdo->prepare($query);
-$stmt->execute([$course_id]);
-$students = $stmt->fetchAll(PDO::FETCH_ASSOC);
+$students = $enroll_model->getStudentsByCourse($course_id, $instructor_id);
 ?>
 
 <div id="layoutSidenav_content">
@@ -62,7 +56,6 @@ $students = $stmt->fetchAll(PDO::FETCH_ASSOC);
                                     <span class="badge <?php echo $badge; ?>"><?php echo ucfirst($row['status']); ?></span>
                                 </td>
                                 <td>
-                                   
                                     <a href="manage_student.php?enroll_id=<?php echo $row['enrollment_id']; ?>" class="btn btn-sm btn-primary">Manage</a>
                                 </td>
                             </tr>
